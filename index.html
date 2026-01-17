@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Options Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="header">
+    <input id="tickerInput" type="text" placeholder="Ticker (e.g. AAPL)">
+    <button id="loadBtn">Load</button>
+    <span id="priceDisplay"></span>
+    <select id="expirySelect"></select>
+    <span id="errorMsg" class="error"></span>
+  </div>
+
+  <div class="container">
+    <div class="options-panel">
+      <table id="optionsTable">
+        <thead>
+          <tr>
+            <th>Strike</th>
+            <th>Call Bid</th>
+            <th>Call Ask</th>
+            <th>Put Bid</th>
+            <th>Put Ask</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="chart-panel" id="chartPanel" style="display:none">
+      <div class="chart-section">
+        <h3>Greeks vs Underlying Price</h3>
+        <canvas id="chartUnder"></canvas>
+      </div>
+      <div class="chart-section">
+        <h3>Greeks vs Time to Expiration</h3>
+        <canvas id="chartTime"></canvas>
+      </div>
+      <div class="chart-section">
+        <h3>Greeks vs Implied Volatility</h3>
+        <canvas id="chartVol"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
