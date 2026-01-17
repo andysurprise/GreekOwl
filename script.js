@@ -1,147 +1,170 @@
-// script.js — Polygon Snapshot version
+// script.js — Polygon FREE-tier compatible
 
 const POLY_KEY = "Ce7nCyUCeVo3TCmPNmycD99VG6gcMYCJ";
-let snapshotData = {};
-let chartUnder, chartTime, chartVol;
+const STRIKES_AROUND = 5;
 
-// Helper to fetch Polygon snapshot
-async function fetchPolygonSnapshot(ticker) {
-  const url = `https://api.polygon.io/v3/snapshot/options/${ticker}?apiKey=${POLY_KEY}`;
+let contracts = [];
+let spotPrice = null;
+let greeksChart = null;
+
+// ---------- Helpers ----------
+
+async function polyFetch(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch data from Polygon");
-  const data = await res.json();
-  return data;
+  if (!res.ok) throw new Error(`Polygon error ${res.status}`);
+  return res.json();
 }
+
+// ---------- Load Ticker ----------
 
 async function loadTicker() {
   const ticker = tickerInput.value.trim().toUpperCase();
   errorMsg.textContent = "";
+  optionsTableBody.innerHTML = "";
+  chartPanel.style.display = "none";
+
   if (!ticker) return;
 
   try {
-    const data = await fetchPolygonSnapshot(ticker);
-    if (!data.snapshot) throw new Error("No snapshot returned");
+    // 1) Get spot price
+    const quote = await polyFetch(
+      `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?apiKey=${POLY_KEY}`
+    );
+    spotPrice = quote.results[0].c;
+    priceDisplay.textContent = `Price: $${spotPrice.toFixed(2)}`;
 
-    snapshotData.raw = data.snapshot;
-    snapshotData.underlying = data.snapshot.underlying.last.quote;
-    priceDisplay.textContent = `Price: $${snapshotData.underlying}`;
+    // 2) Get option contracts
+    const contractsResp = await polyFetch(
+      `https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=${ticker}&limit=1000&apiKey=${POLY_KEY}`
+    );
+    contracts = contractsResp.results;
 
-    // Extract unique expiries
-    let expiries = [
-      ...new Set(data.snapshot.options.map((opt) => opt.expiration_date)),
-    ];
-    expiries.sort();
-
+    // 3) Populate expiries
+    const expiries = [...new Set(contracts.map(c => c.expiration_date))].sort();
     expirySelect.innerHTML = "";
-    expiries.forEach((exp) => {
-      const opt = document.createElement("option");
-      opt.value = exp;
-      opt.textContent = exp;
-      expirySelect.appendChild(opt);
+    expiries.forEach(exp => {
+      const o = document.createElement("option");
+      o.value = exp;
+      o.textContent = exp;
+      expirySelect.appendChild(o);
     });
 
-    // Build table for first expiry
-    buildTableForExpiry(expiries[0]);
+    buildLadder(expiries[0]);
   } catch (err) {
     console.error(err);
     errorMsg.textContent = err.message;
   }
 }
 
-// Build ladder filtered locally
-function buildTableForExpiry(exp) {
-  const tableBody = document.querySelector("#optionsTable tbody");
-  tableBody.innerHTML = "";
+// ---------- Build Options Ladder ----------
 
-  const allOpts = snapshotData.raw.options;
-  const spot = snapshotData.underlying;
+async function buildLadder(expiry) {
+  optionsTableBody.innerHTML = "";
 
-  // Filter to this expiry
-  const calls = allOpts.filter((o) => o.option_type === "call" && o.expiration_date === exp);
-  const puts  = allOpts.filter((o) => o.option_type === "put"  && o.expiration_date === exp);
+  const expContracts = contracts.filter(c => c.expiration_date === expiry);
 
-  // Sort by strike
-  calls.sort((a, b) => a.strike_price - b.strike_price);
-  puts.sort((a, b) => a.strike_price - b.strike_price);
+  // Get strikes closest to spot
+  const strikes = [...new Set(expContracts.map(c => c.strike_price))]
+    .sort((a, b) => a - b);
 
-  for (let i = 0; i < calls.length; i++) {
-    const row = document.createElement("tr");
-    const c = calls[i], p = puts[i];
-    row.innerHTML = `
-      <td>${c.strike_price.toFixed(2)}</td>
-      <td data-type="call" data-strike="${c.strike_price}">${c.bid}</td>
-      <td data-type="call" data-strike="${c.strike_price}">${c.ask}</td>
-      <td data-type="put" data-strike="${p.strike_price}">${p.bid}</td>
-      <td data-type="put" data-strike="${p.strike_price}">${p.ask}</td>
-    `;
-    row.querySelectorAll("td[data-type]").forEach((cell) => {
-      cell.addEventListener("click", () =>
-        drawGreeksForOption(exp, cell.dataset.type, Number(cell.dataset.strike))
-      );
-    });
-    tableBody.appendChild(row);
-  }
-}
-
-function drawGreeksForOption(exp, type, strike) {
-  const allOpts = snapshotData.raw.options.filter(
-    (o) => o.expiration_date === exp && o.strike_price === strike && o.option_type === type
+  const nearestIndex = strikes.reduce(
+    (best, s, i) =>
+      Math.abs(s - spotPrice) < Math.abs(strikes[best] - spotPrice) ? i : best,
+    0
   );
 
-  if (allOpts.length === 0) return;
-  const opt = allOpts[0];
+  const selectedStrikes = strikes.slice(
+    Math.max(0, nearestIndex - STRIKES_AROUND),
+    nearestIndex + STRIKES_AROUND + 1
+  );
 
-  const prices = [], deltaArr = [], gammaArr = [], thetaArr = [], vegaArr = [];
-
-  // Build Greek curves around underlying price
-  const spot = snapshotData.underlying;
-  for (let i = -10; i <= 10; i++) {
-    const price = spot * (1 + i / 50);
-    const matchingOpt = snapshotData.raw.options.find(
-      (o) =>
-        o.expiration_date === exp &&
-        o.strike_price === strike &&
-        o.option_type === type
+  for (const strike of selectedStrikes) {
+    const call = expContracts.find(
+      c => c.strike_price === strike && c.contract_type === "call"
     );
-    if (!matchingOpt) continue;
+    const put = expContracts.find(
+      c => c.strike_price === strike && c.contract_type === "put"
+    );
 
-    prices.push(price.toFixed(2));
-    deltaArr.push(matchingOpt.delta);
-    gammaArr.push(matchingOpt.gamma);
-    thetaArr.push(matchingOpt.theta);
-    vegaArr.push(matchingOpt.vega);
+    const callSnap = call
+      ? await fetchSnapshot(call.ticker)
+      : null;
+    const putSnap = put
+      ? await fetchSnapshot(put.ticker)
+      : null;
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${strike.toFixed(2)}</td>
+      <td class="clickable">${callSnap?.last_quote?.bid ?? "-"}</td>
+      <td class="clickable">${callSnap?.last_quote?.ask ?? "-"}</td>
+      <td class="clickable">${putSnap?.last_quote?.bid ?? "-"}</td>
+      <td class="clickable">${putSnap?.last_quote?.ask ?? "-"}</td>
+    `;
+
+    row.querySelectorAll(".clickable").forEach((cell, idx) => {
+      const snap = idx < 2 ? callSnap : putSnap;
+      if (snap?.greeks) {
+        cell.addEventListener("click", () =>
+          renderGreeksChart(snap.greeks, strike)
+        );
+      }
+    });
+
+    optionsTableBody.appendChild(row);
   }
-
-  renderChart(chartUnder, "chartUnder", prices, deltaArr, gammaArr, thetaArr, vegaArr);
-  chartPanel.style.display = "block";
 }
 
-function renderChart(existing, id, labels, d, g, t, v) {
-  if (existing) existing.destroy();
-  const ctx = document.getElementById(id);
-  return new Chart(ctx, {
-    type: "line",
+// ---------- Per-Contract Snapshot ----------
+
+async function fetchSnapshot(optionTicker) {
+  try {
+    const snap = await polyFetch(
+      `https://api.polygon.io/v3/snapshot/options/${optionTicker}?apiKey=${POLY_KEY}`
+    );
+    return snap.results;
+  } catch {
+    return null;
+  }
+}
+
+// ---------- Greeks Chart ----------
+
+function renderGreeksChart(greeks, strike) {
+  chartPanel.style.display = "block";
+  if (greeksChart) greeksChart.destroy();
+
+  const ctx = document.getElementById("chartUnder");
+  greeksChart = new Chart(ctx, {
+    type: "bar",
     data: {
-      labels,
-      datasets: [
-        { label: "Delta", data: d, borderColor: "#ff9800" },
-        { label: "Gamma", data: g, borderColor: "#a832a5" },
-        { label: "Theta", data: t, borderColor: "#33ff99" },
-        { label: "Vega", data: v, borderColor: "#3399ff" },
-      ],
+      labels: ["Delta", "Gamma", "Theta", "Vega", "Rho"],
+      datasets: [{
+        label: `Greeks @ ${strike}`,
+        data: [
+          greeks.delta,
+          greeks.gamma,
+          greeks.theta,
+          greeks.vega,
+          greeks.rho
+        ]
+      }]
     },
     options: {
-      plugins: { legend: { labels: { color: "#fff" } } },
+      plugins: {
+        legend: { labels: { color: "#fff" } }
+      },
       scales: {
         x: { ticks: { color: "#fff" } },
-        y: { ticks: { color: "#fff" } },
-      },
-    },
+        y: { ticks: { color: "#fff" } }
+      }
+    }
   });
 }
 
-// Listeners
+// ---------- Events ----------
+
 loadBtn.addEventListener("click", loadTicker);
 expirySelect.addEventListener("change", () =>
-  buildTableForExpiry(expirySelect.value)
+  buildLadder(expirySelect.value)
 );
