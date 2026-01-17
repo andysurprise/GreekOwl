@@ -1,166 +1,121 @@
-// script.js
-let optionData = {};
+// script.js — Polygon Snapshot version
+
+const POLY_KEY = "Ce7nCyUCeVo3TCmPNmycD99VG6gcMYCJ";
+let snapshotData = {};
 let chartUnder, chartTime, chartVol;
 
-// ----- Helpers: Black–Scholes Greeks -----
-function normalCDF(x) {
-  let t = 1 / (1 + 0.2316419 * Math.abs(x));
-  let d = 0.3989423 * Math.exp(-x * x / 2);
-  let prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  return x > 0 ? 1 - prob : prob;
-}
-function normalPDF(x) {
-  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
-}
-function calcGreeks(S, K, T, r, v, isCall) {
-  const d1 = (Math.log(S / K) + (r + 0.5 * v * v) * T) / (v * Math.sqrt(T));
-  const d2 = d1 - v * Math.sqrt(T);
-  const delta = isCall ? normalCDF(d1) : normalCDF(d1) - 1;
-  const gamma = normalPDF(d1) / (S * v * Math.sqrt(T));
-  let theta = -(S * normalPDF(d1) * v) / (2 * Math.sqrt(T));
-  theta += isCall
-    ? -r * K * Math.exp(-r * T) * normalCDF(d2)
-    : r * K * Math.exp(-r * T) * normalCDF(-d2);
-  const vega = S * normalPDF(d1) * Math.sqrt(T);
-  return { delta, gamma, theta: theta / 365, vega };
-}
-
-// ----- Fetching with CORS Proxy -----
-async function fetchWithProxy(url) {
-  // Using public CORS proxy to bypass Yahoo Finance restrictions
-  const proxy = "https://api.allorigins.win/raw?url=";
-  const finalUrl = proxy + encodeURIComponent(url);
-
-  const response = await fetch(finalUrl);
-  const data = await response.json();
+// Helper to fetch Polygon snapshot
+async function fetchPolygonSnapshot(ticker) {
+  const url = `https://api.polygon.io/v3/snapshot/options/${ticker}?apiKey=${POLY_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch data from Polygon");
+  const data = await res.json();
   return data;
 }
 
-// ----- Load ticker + expirations -----
 async function loadTicker() {
   const ticker = tickerInput.value.trim().toUpperCase();
   errorMsg.textContent = "";
-
   if (!ticker) return;
 
   try {
-    // Yahoo options endpoint (proxied)
-    const data = await fetchWithProxy(
-      `https://query1.finance.yahoo.com/v7/finance/options/${ticker}`
-    );
+    const data = await fetchPolygonSnapshot(ticker);
+    if (!data.snapshot) throw new Error("No snapshot returned");
 
-    const result = data.optionChain.result[0];
-    const quote = result.quote;
-    optionData.underlying = quote.regularMarketPrice;
-    optionData.expiries = result.expirationDates;
+    snapshotData.raw = data.snapshot;
+    snapshotData.underlying = data.snapshot.underlying.last.quote;
+    priceDisplay.textContent = `Price: $${snapshotData.underlying}`;
 
-    priceDisplay.textContent = `Price: $${optionData.underlying.toFixed(2)}`;
+    // Extract unique expiries
+    let expiries = [
+      ...new Set(data.snapshot.options.map((opt) => opt.expiration_date)),
+    ];
+    expiries.sort();
 
     expirySelect.innerHTML = "";
-    optionData.expiries.forEach((ts) => {
+    expiries.forEach((exp) => {
       const opt = document.createElement("option");
-      opt.value = ts;
-      opt.textContent = new Date(ts * 1000).toLocaleDateString();
+      opt.value = exp;
+      opt.textContent = exp;
       expirySelect.appendChild(opt);
     });
 
-    // Load the first expiry
-    loadExpiry();
+    // Build table for first expiry
+    buildTableForExpiry(expiries[0]);
   } catch (err) {
     console.error(err);
-    errorMsg.textContent = "Failed to fetch data — try again later";
+    errorMsg.textContent = err.message;
   }
 }
 
-async function loadExpiry() {
-  const ticker = tickerInput.value.trim().toUpperCase();
-  const date = expirySelect.value;
-  if (!ticker || !date) return;
+// Build ladder filtered locally
+function buildTableForExpiry(exp) {
+  const tableBody = document.querySelector("#optionsTable tbody");
+  tableBody.innerHTML = "";
 
-  try {
-    // Fetch options chain for selected expiry
-    const data = await fetchWithProxy(
-      `https://query1.finance.yahoo.com/v7/finance/options/${ticker}?date=${date}`
-    );
+  const allOpts = snapshotData.raw.options;
+  const spot = snapshotData.underlying;
 
-    const opt = data.optionChain.result[0].options[0];
-    optionData.calls = opt.calls;
-    optionData.puts = opt.puts;
-    optionData.expiry = date;
+  // Filter to this expiry
+  const calls = allOpts.filter((o) => o.option_type === "call" && o.expiration_date === exp);
+  const puts  = allOpts.filter((o) => o.option_type === "put"  && o.expiration_date === exp);
 
-    renderTable();
-  } catch (err) {
-    console.error(err);
-    errorMsg.textContent = "Failed to load expiry data";
-  }
-}
+  // Sort by strike
+  calls.sort((a, b) => a.strike_price - b.strike_price);
+  puts.sort((a, b) => a.strike_price - b.strike_price);
 
-// ----- Build Options Ladder -----
-function renderTable() {
-  const tbody = document.querySelector("#optionsTable tbody");
-  tbody.innerHTML = "";
-
-  const spot = optionData.underlying;
-  const calls = optionData.calls;
-  const puts = optionData.puts;
-
-  if (!calls || !puts) return;
-
-  let atmIndex = calls.findIndex((c) => c.strike >= spot);
-  atmIndex = atmIndex < 0 ? 0 : atmIndex;
-  const start = Math.max(0, atmIndex - 5);
-  const end = Math.min(calls.length, atmIndex + 6);
-
-  for (let i = start; i < end; i++) {
+  for (let i = 0; i < calls.length; i++) {
     const row = document.createElement("tr");
+    const c = calls[i], p = puts[i];
     row.innerHTML = `
-      <td>${calls[i].strike.toFixed(2)}</td>
-      <td data-type="call" data-strike="${calls[i].strike.toFixed(2)}">${calls[i].bid.toFixed(2)}</td>
-      <td data-type="call" data-strike="${calls[i].strike.toFixed(2)}">${calls[i].ask.toFixed(2)}</td>
-      <td data-type="put" data-strike="${puts[i].strike.toFixed(2)}">${puts[i].bid.toFixed(2)}</td>
-      <td data-type="put" data-strike="${puts[i].strike.toFixed(2)}">${puts[i].ask.toFixed(2)}</td>
+      <td>${c.strike_price.toFixed(2)}</td>
+      <td data-type="call" data-strike="${c.strike_price}">${c.bid}</td>
+      <td data-type="call" data-strike="${c.strike_price}">${c.ask}</td>
+      <td data-type="put" data-strike="${p.strike_price}">${p.bid}</td>
+      <td data-type="put" data-strike="${p.strike_price}">${p.ask}</td>
     `;
     row.querySelectorAll("td[data-type]").forEach((cell) => {
       cell.addEventListener("click", () =>
-        drawGreeks(cell.dataset.type, Number(cell.dataset.strike))
+        drawGreeksForOption(exp, cell.dataset.type, Number(cell.dataset.strike))
       );
     });
-    tbody.appendChild(row);
+    tableBody.appendChild(row);
   }
 }
 
-// ----- Draw the Greek Charts -----
-function drawGreeks(type, strike) {
-  const isCall = type === "call";
-  const S0 = optionData.underlying;
-  const r = 0.01; // risk-free rate assumption
-  const vol = 0.2; // placeholder IV
+function drawGreeksForOption(exp, type, strike) {
+  const allOpts = snapshotData.raw.options.filter(
+    (o) => o.expiration_date === exp && o.strike_price === strike && o.option_type === type
+  );
 
-  const T =
-    (optionData.expiry - Date.now() / 1000) / (365 * 24 * 3600);
-  if (T <= 0) return;
+  if (allOpts.length === 0) return;
+  const opt = allOpts[0];
 
-  const prices = [],
-    deltaArr = [],
-    gammaArr = [],
-    thetaArr = [],
-    vegaArr = [];
+  const prices = [], deltaArr = [], gammaArr = [], thetaArr = [], vegaArr = [];
 
+  // Build Greek curves around underlying price
+  const spot = snapshotData.underlying;
   for (let i = -10; i <= 10; i++) {
-    const S = S0 * (1 + i / 50);
-    const g = calcGreeks(S, strike, T, r, vol, isCall);
-    prices.push(S.toFixed(2));
-    deltaArr.push(g.delta);
-    gammaArr.push(g.gamma);
-    thetaArr.push(g.theta);
-    vegaArr.push(g.vega);
+    const price = spot * (1 + i / 50);
+    const matchingOpt = snapshotData.raw.options.find(
+      (o) =>
+        o.expiration_date === exp &&
+        o.strike_price === strike &&
+        o.option_type === type
+    );
+    if (!matchingOpt) continue;
+
+    prices.push(price.toFixed(2));
+    deltaArr.push(matchingOpt.delta);
+    gammaArr.push(matchingOpt.gamma);
+    thetaArr.push(matchingOpt.theta);
+    vegaArr.push(matchingOpt.vega);
   }
 
   renderChart(chartUnder, "chartUnder", prices, deltaArr, gammaArr, thetaArr, vegaArr);
   chartPanel.style.display = "block";
 }
 
-// ----- Chart Rendering -----
 function renderChart(existing, id, labels, d, g, t, v) {
   if (existing) existing.destroy();
   const ctx = document.getElementById(id);
@@ -185,6 +140,8 @@ function renderChart(existing, id, labels, d, g, t, v) {
   });
 }
 
-// ----- Event Listeners -----
+// Listeners
 loadBtn.addEventListener("click", loadTicker);
-expirySelect.addEventListener("change", loadExpiry);
+expirySelect.addEventListener("change", () =>
+  buildTableForExpiry(expirySelect.value)
+);
