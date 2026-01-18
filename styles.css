@@ -1,185 +1,61 @@
-* {
+body {
+  background: #0b0b0b;
+  color: #e5e5e5;
+  font-family: Arial, sans-serif;
   margin: 0;
-  padding: 0;
-  box-sizing: border-box;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #0a0e27;
-  color: #e8eaed;
-  padding: 20px;
+.header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #222;
+}
+
+.header input,
+.header select,
+.header button {
+  background: #1a1a1a;
+  color: #fff;
+  border: 1px solid #333;
+  padding: 4px 6px;
+}
+
+.error {
+  color: #ff6b6b;
 }
 
 .container {
-  max-width: 1400px;
-  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  height: calc(100vh - 48px);
 }
 
-header {
-  text-align: center;
-  margin-bottom: 30px;
-  padding: 20px;
-  background: #151932;
-  border-radius: 12px;
+.options-panel {
+  overflow-y: auto;
+  border-right: 1px solid #222;
+  padding: 8px;
 }
 
-h1 {
-  font-size: 2.5rem;
-  margin-bottom: 8px;
-  color: #4a9eff;
-}
-
-.controls {
-  background: #151932;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 20px;
-}
-
-.input-group {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-input {
-  flex: 1;
-  padding: 12px 16px;
-  background: #1e2438;
-  border: 2px solid #2d3548;
-  border-radius: 8px;
-  color: #e8eaed;
-  font-size: 16px;
-  text-transform: uppercase;
-}
-
-input:focus {
-  outline: none;
-  border-color: #4a9eff;
-}
-
-button {
-  padding: 12px 32px;
-  background: #4a9eff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #3a8eef;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-select {
+.options-panel table {
   width: 100%;
-  padding: 10px 12px;
-  background: #1e2438;
-  border: 2px solid #2d3548;
-  border-radius: 8px;
-  color: #e8eaed;
-  font-size: 14px;
-}
-
-.info-bar {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px;
-  background: #1e2438;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-top: 15px;
-}
-
-#stockPrice {
-  color: #34c759;
-  font-weight: 600;
-}
-
-table {
-  width: 100%;
-  background: #151932;
-  border-radius: 12px;
-  overflow: hidden;
   border-collapse: collapse;
 }
 
-th {
-  padding: 16px;
+.options-panel th,
+.options-panel td {
+  border: 1px solid #444;
+  padding: 4px;
   text-align: center;
-  font-weight: 600;
-  background: #1e2438;
-  border-bottom: 2px solid #2d3548;
 }
 
-.call-header {
-  background: rgba(52, 199, 89, 0.1);
-  color: #34c759;
+.note {
+  font-size: 12px;
+  color: #888;
+  margin-top: 6px;
 }
 
-.put-header {
-  background: rgba(255, 69, 58, 0.1);
-  color: #ff453a;
-}
-
-.strike-header {
-  color: #ffd60a;
-}
-
-td {
-  padding: 14px;
-  text-align: center;
-  border-bottom: 1px solid #2d3548;
-  color: #9aa0a6;
-}
-
-tr:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.strike {
-  font-weight: 600;
-  color: #e8eaed;
-  background: #1e2438;
-}
-
-.atm-strike {
-  background: rgba(255, 214, 10, 0.05);
-  font-weight: 600;
-}
-
-.atm-strike td {
-  color: #ffd60a;
-}
-
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #9aa0a6;
-}
-
-@media (max-width: 768px) {
-  h1 {
-    font-size: 2rem;
-  }
-  
-  .input-group {
-    flex-direction: column;
-  }
-  
-  table {
-    font-size: 12px;
-  }
-  
-  th, td {
-    padding: 10px 8px;
-  }
+.chart-panel {
+  padding: 10px;
 }
