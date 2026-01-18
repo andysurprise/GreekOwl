@@ -2,58 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GreekOwl - Options Viewer</title>
+  <title>GreekOwl</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>🦉 GreekOwl</h1>
-      <p>Options Chain Viewer</p>
-    </header>
-
-    <div class="controls">
-      <div class="input-group">
-        <input type="text" id="tickerInput" placeholder="Enter ticker (e.g., AAPL)">
-        <button id="loadBtn">Load</button>
-      </div>
-      
-      <select id="expirySelect" disabled>
-        <option>Select a ticker first</option>
-      </select>
-
-      <div class="info-bar">
-        <span id="stockPrice"></span>
-        <span id="dataStatus"></span>
-      </div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th colspan="3" class="call-header">CALLS</th>
-          <th class="strike-header">Strike</th>
-          <th colspan="3" class="put-header">PUTS</th>
-        </tr>
-        <tr>
-          <th>Volume</th>
-          <th>Bid</th>
-          <th>Ask</th>
-          <th class="strike-header">Price</th>
-          <th>Bid</th>
-          <th>Ask</th>
-          <th>Volume</th>
-        </tr>
-      </thead>
-      <tbody id="optionsBody">
-        <tr>
-          <td colspan="7" class="loading">Enter a ticker and click Load</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="header">
+    <input id="tickerInput" type="text" placeholder="Ticker (e.g., AAPL)">
+    <button id="loadBtn">Load</button>
+    <select id="expirySelect"></select>
+    <span id="priceDisplay"></span>
+    <span id="errorMsg"></span>
   </div>
-
+  <div class="container">
+    <div class="options-panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Strike</th>
+            <th>Call Bid*</th>
+            <th>Call Ask*</th>
+            <th>Put Bid*</th>
+            <th>Put Ask*</th>
+          </tr>
+        </thead>
+        <tbody id="optionsBody"></tbody>
+      </table>
+      <div class="note">*Bid/Ask are synthetic since free API lacks pricing</div>
+    </div>
+    <div class="chart-panel">
+      <h3>Greeks</h3>
+      <canvas id="greeksChart"></canvas>
+    </div>
+  </div>
   <script src="script.js"></script>
 </body>
 </html>
