@@ -1,170 +1,148 @@
-// script.js — Polygon FREE-tier compatible
+// GreekOwl — Terminal Mode Upgrade
 
-const POLY_KEY = "Ce7nCyUCeVo3TCmPNmycD99VG6gcMYCJ";
-const STRIKES_AROUND = 5;
+// ---- Existing globals assumed ----
+// ladder[], contracts[], spot, currentExpiry, etc.
 
-let contracts = [];
-let spotPrice = null;
-let greeksChart = null;
+let selectedOption = null;
+let volChart = null;
+let plChart = null;
 
-// ---------- Helpers ----------
+// ---------- Command Bar ----------
 
-async function polyFetch(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Polygon error ${res.status}`);
-  return res.json();
-}
+commandInput.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
 
-// ---------- Load Ticker ----------
+  const parts = commandInput.value.trim().toUpperCase().split(/\s+/);
+  commandInput.value = "";
 
-async function loadTicker() {
-  const ticker = tickerInput.value.trim().toUpperCase();
-  errorMsg.textContent = "";
-  optionsTableBody.innerHTML = "";
-  chartPanel.style.display = "none";
-
-  if (!ticker) return;
-
-  try {
-    // 1) Get spot price
-    const quote = await polyFetch(
-      `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?apiKey=${POLY_KEY}`
-    );
-    spotPrice = quote.results[0].c;
-    priceDisplay.textContent = `Price: $${spotPrice.toFixed(2)}`;
-
-    // 2) Get option contracts
-    const contractsResp = await polyFetch(
-      `https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=${ticker}&limit=1000&apiKey=${POLY_KEY}`
-    );
-    contracts = contractsResp.results;
-
-    // 3) Populate expiries
-    const expiries = [...new Set(contracts.map(c => c.expiration_date))].sort();
-    expirySelect.innerHTML = "";
-    expiries.forEach(exp => {
-      const o = document.createElement("option");
-      o.value = exp;
-      o.textContent = exp;
-      expirySelect.appendChild(o);
-    });
-
-    buildLadder(expiries[0]);
-  } catch (err) {
-    console.error(err);
-    errorMsg.textContent = err.message;
+  if (parts.length >= 1) {
+    tickerInput.value = parts[0];
+    loadTicker();
   }
-}
 
-// ---------- Build Options Ladder ----------
-
-async function buildLadder(expiry) {
-  optionsTableBody.innerHTML = "";
-
-  const expContracts = contracts.filter(c => c.expiration_date === expiry);
-
-  // Get strikes closest to spot
-  const strikes = [...new Set(expContracts.map(c => c.strike_price))]
-    .sort((a, b) => a - b);
-
-  const nearestIndex = strikes.reduce(
-    (best, s, i) =>
-      Math.abs(s - spotPrice) < Math.abs(strikes[best] - spotPrice) ? i : best,
-    0
-  );
-
-  const selectedStrikes = strikes.slice(
-    Math.max(0, nearestIndex - STRIKES_AROUND),
-    nearestIndex + STRIKES_AROUND + 1
-  );
-
-  for (const strike of selectedStrikes) {
-    const call = expContracts.find(
-      c => c.strike_price === strike && c.contract_type === "call"
-    );
-    const put = expContracts.find(
-      c => c.strike_price === strike && c.contract_type === "put"
-    );
-
-    const callSnap = call
-      ? await fetchSnapshot(call.ticker)
-      : null;
-    const putSnap = put
-      ? await fetchSnapshot(put.ticker)
-      : null;
-
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${strike.toFixed(2)}</td>
-      <td class="clickable">${callSnap?.last_quote?.bid ?? "-"}</td>
-      <td class="clickable">${callSnap?.last_quote?.ask ?? "-"}</td>
-      <td class="clickable">${putSnap?.last_quote?.bid ?? "-"}</td>
-      <td class="clickable">${putSnap?.last_quote?.ask ?? "-"}</td>
-    `;
-
-    row.querySelectorAll(".clickable").forEach((cell, idx) => {
-      const snap = idx < 2 ? callSnap : putSnap;
-      if (snap?.greeks) {
-        cell.addEventListener("click", () =>
-          renderGreeksChart(snap.greeks, strike)
-        );
-      }
-    });
-
-    optionsTableBody.appendChild(row);
+  if (parts.length >= 2) {
+    setTimeout(() => {
+      expirySelect.value = parts[1];
+      currentExpiry = parts[1];
+      buildLadder();
+    }, 500);
   }
-}
 
-// ---------- Per-Contract Snapshot ----------
-
-async function fetchSnapshot(optionTicker) {
-  try {
-    const snap = await polyFetch(
-      `https://api.polygon.io/v3/snapshot/options/${optionTicker}?apiKey=${POLY_KEY}`
-    );
-    return snap.results;
-  } catch {
-    return null;
+  if (parts.length >= 4) {
+    const type = parts[2] === "C" ? "call" : "put";
+    const strike = Number(parts[3]);
+    setTimeout(() => {
+      const row = ladder.find(r => r.strike === strike);
+      if (row) showGreeks(row[type], strike);
+    }, 1200);
   }
-}
+});
 
-// ---------- Greeks Chart ----------
+// ---------- Volatility Smile ----------
 
-function renderGreeksChart(greeks, strike) {
-  chartPanel.style.display = "block";
-  if (greeksChart) greeksChart.destroy();
+function renderVolSmile() {
+  if (!ladder.length) return;
+  if (volChart) volChart.destroy();
 
-  const ctx = document.getElementById("chartUnder");
-  greeksChart = new Chart(ctx, {
-    type: "bar",
+  const strikes = ladder.map(r => r.strike);
+  const callIV = ladder.map(r => r.call?.implied_volatility ?? null);
+  const putIV  = ladder.map(r => r.put?.implied_volatility ?? null);
+
+  volChart = new Chart(volChartEl, {
+    type: "line",
     data: {
-      labels: ["Delta", "Gamma", "Theta", "Vega", "Rho"],
-      datasets: [{
-        label: `Greeks @ ${strike}`,
-        data: [
-          greeks.delta,
-          greeks.gamma,
-          greeks.theta,
-          greeks.vega,
-          greeks.rho
-        ]
-      }]
+      labels: strikes,
+      datasets: [
+        { label: "Call IV", data: callIV, borderWidth: 2 },
+        { label: "Put IV", data: putIV, borderWidth: 2 }
+      ]
     },
     options: {
-      plugins: {
-        legend: { labels: { color: "#fff" } }
-      },
-      scales: {
-        x: { ticks: { color: "#fff" } },
-        y: { ticks: { color: "#fff" } }
+      plugins:{ legend:{ labels:{ color:"#fff" }}},
+      scales:{
+        x:{ ticks:{ color:"#aaa" }},
+        y:{ ticks:{ color:"#aaa" }}
       }
     }
   });
 }
 
-// ---------- Events ----------
+// Call this after ladder loads
+// renderVolSmile();
 
-loadBtn.addEventListener("click", loadTicker);
-expirySelect.addEventListener("change", () =>
-  buildLadder(expirySelect.value)
-);
+// ---------- Payoff Simulator ----------
+
+function renderPayoff(option, strike) {
+  if (!option?.last_quote) return;
+  if (plChart) plChart.destroy();
+
+  const premium = option.last_quote.ask ?? option.last_quote.bid ?? 0;
+  const isCall = option.contract_type === "call";
+
+  const prices = [];
+  const pnl = [];
+
+  for (let i=-20;i<=20;i++) {
+    const px = spot*(1+i/20);
+    prices.push(px.toFixed(2));
+
+    let intrinsic = isCall
+      ? Math.max(px - strike, 0)
+      : Math.max(strike - px, 0);
+
+    pnl.push((intrinsic - premium).toFixed(2));
+  }
+
+  plChart = new Chart(plChartEl, {
+    type:"line",
+    data:{
+      labels:prices,
+      datasets:[{ label:"P/L", data:pnl, borderWidth:2 }]
+    },
+    options:{
+      plugins:{ legend:{ labels:{ color:"#fff" }}},
+      scales:{
+        x:{ ticks:{ color:"#aaa" }},
+        y:{ ticks:{ color:"#aaa" }}
+      }
+    }
+  });
+}
+
+// Extend showGreeks
+const _showGreeks = showGreeks;
+showGreeks = (opt, strike) => {
+  selectedOption = opt;
+  _showGreeks(opt, strike);
+  renderPayoff(opt, strike);
+  persistState(strike);
+};
+
+// ---------- Persistence ----------
+
+function persistState(strike) {
+  localStorage.setItem("greekowl", JSON.stringify({
+    ticker: tickerInput.value,
+    expiry: currentExpiry,
+    strike
+  }));
+}
+
+function restoreState() {
+  const s = JSON.parse(localStorage.getItem("greekowl") || "{}");
+  if (!s.ticker) return;
+
+  tickerInput.value = s.ticker;
+  loadTicker();
+
+  setTimeout(() => {
+    expirySelect.value = s.expiry;
+    currentExpiry = s.expiry;
+    buildLadder().then(() => {
+      const row = ladder.find(r => r.strike === s.strike);
+      if (row) showGreeks(row.call || row.put, row.strike);
+    });
+  }, 800);
+}
+
+restoreState();
