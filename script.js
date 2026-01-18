@@ -1,128 +1,190 @@
 // ===============================
-// GreekOwl — Polygon Per-Expiry Engine
+// GreekOwl - Options Chain Viewer
 // ===============================
+
 const API_KEY = "Ce7nCyUCeVo3TCmPNmycD99VG6gcMYCJ";
 
 let ticker = "";
+let stockPrice = null;
 let expiries = [];
 let contracts = [];
 
-// DOM element references - will be initialized after DOM loads
-let tickerInput;
-let loadBtn;
-let expirySelect;
-let ladderBody;
+const elements = {
+  tickerInput: document.getElementById("tickerInput"),
+  loadBtn: document.getElementById("loadBtn"),
+  expirySelect: document.getElementById("expirySelect"),
+  optionsBody: document.getElementById("optionsBody"),
+  stockPrice: document.getElementById("stockPrice"),
+  dataStatus: document.getElementById("dataStatus")
+};
 
-// ---------- INITIALIZE AFTER DOM LOADS ----------
-document.addEventListener('DOMContentLoaded', () => {
-  tickerInput = document.getElementById("tickerInput");
-  loadBtn = document.getElementById("loadBtn");
-  expirySelect = document.getElementById("expirySelect");
-  ladderBody = document.getElementById("optionsBody");
-  
-  // ---------- HARD BIND LOAD ----------
-  loadBtn.addEventListener("click", () => {
-    ticker = tickerInput.value.trim().toUpperCase();
-    if (!ticker) return alert("Enter a ticker");
-    console.log("Loading ticker:", ticker);
-    fetchExpirations();
-  });
+// Event Listeners
+elements.loadBtn.addEventListener("click", handleLoad);
+elements.tickerInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") handleLoad();
+});
+elements.expirySelect.addEventListener("change", fetchContracts);
+
+// Auto-uppercase input
+elements.tickerInput.addEventListener("input", (e) => {
+  e.target.value = e.target.value.toUpperCase();
 });
 
-// ---------- FETCH EXPIRATIONS ----------
+async function handleLoad() {
+  ticker = elements.tickerInput.value.trim().toUpperCase();
+  if (!ticker) {
+    alert("Enter a ticker");
+    return;
+  }
+
+  elements.loadBtn.disabled = true;
+  elements.loadBtn.textContent = "Loading...";
+  
+  try {
+    await fetchStockPrice();
+    await fetchExpirations();
+  } catch (error) {
+    console.error("Full error:", error);
+    alert("Error loading data: " + error.message + "\n\nCheck console for details (F12)");
+  } finally {
+    elements.loadBtn.disabled = false;
+    elements.loadBtn.textContent = "Load";
+  }
+}
+
+async function fetchStockPrice() {
+  try {
+    const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?apiKey=${API_KEY}`;
+    console.log("Fetching stock price:", url);
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    console.log("Stock price response:", data);
+    
+    if (data.results && data.results.length > 0) {
+      stockPrice = data.results[0].c;
+      elements.stockPrice.textContent = `${ticker}: $${stockPrice.toFixed(2)}`;
+    } else if (data.status === "ERROR") {
+      console.warn("Stock price API error:", data.error);
+    }
+  } catch (error) {
+    console.warn("Could not fetch stock price:", error);
+  }
+}
+
 async function fetchExpirations() {
-  expirySelect.innerHTML = "";
-  ladderBody.innerHTML = "";
+  elements.optionsBody.innerHTML = '<tr><td colspan="7" class="loading">Loading expirations...</td></tr>';
   
-  const url =
-    `https://api.polygon.io/v3/reference/options/contracts?` +
-    `underlying_ticker=${ticker}&limit=20&apiKey=${API_KEY}`;
+  const url = `https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=${ticker}&limit=250&apiKey=${API_KEY}`;
+  console.log("Fetching expirations:", url);
   
-  console.log("Fetching expiries…");
+  const res = await fetch(url);
+  const data = await res.json();
   
-  try {
-    const res = await fetch(url);
-    const json = await res.json();
-    
-    if (!json.results) {
-      console.error("No expiries returned", json);
-      alert("No options data available");
-      return;
-    }
-    
-    expiries = [...new Set(json.results.map(r => r.expiration_date))];
-    
-    expiries.forEach(d => {
-      const opt = document.createElement("option");
-      opt.value = d;
-      opt.textContent = d;
-      expirySelect.appendChild(opt);
-    });
-    
-    expirySelect.onchange = fetchContractsForExpiry;
-    fetchContractsForExpiry();
-  } catch (error) {
-    console.error("Error fetching expirations:", error);
-    alert("Failed to fetch options data");
+  console.log("Expirations response:", data);
+
+  if (res.status === 404 || data.status === "NOT_FOUND") {
+    throw new Error(`${ticker} not found or has no options contracts available`);
   }
+
+  if (data.status === "ERROR") {
+    throw new Error(data.message || data.error || "API Error");
+  }
+
+  if (!data.results || data.results.length === 0) {
+    throw new Error(`No options found for ${ticker}. Make sure the ticker is correct and has options.`);
+  }
+
+  expiries = [...new Set(data.results.map(r => r.expiration_date))].sort();
+  
+  elements.expirySelect.innerHTML = "";
+  elements.expirySelect.disabled = false;
+  
+  expiries.forEach(date => {
+    const opt = document.createElement("option");
+    opt.value = date;
+    opt.textContent = date;
+    elements.expirySelect.appendChild(opt);
+  });
+
+  elements.dataStatus.textContent = `${expiries.length} expirations`;
+  fetchContracts();
 }
 
-// ---------- FETCH CONTRACTS FOR ONE EXPIRY ----------
-async function fetchContractsForExpiry() {
-  const expiry = expirySelect.value;
-  ladderBody.innerHTML = "";
+async function fetchContracts() {
+  const expiry = elements.expirySelect.value;
+  elements.optionsBody.innerHTML = '<tr><td colspan="7" class="loading">Loading options chain...</td></tr>';
+
+  const url = `https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=${ticker}&expiration_date=${expiry}&limit=1000&apiKey=${API_KEY}`;
+  console.log("Fetching contracts:", url);
   
-  const url =
-    `https://api.polygon.io/v3/reference/options/contracts?` +
-    `underlying_ticker=${ticker}` +
-    `&expiration_date=${expiry}` +
-    `&limit=50&apiKey=${API_KEY}`;
+  const res = await fetch(url);
+  const data = await res.json();
   
-  console.log("Fetching contracts for", expiry);
-  
-  try {
-    const res = await fetch(url);
-    const json = await res.json();
-    
-    if (!json.results) {
-      console.error("No contracts", json);
-      return;
-    }
-    
-    contracts = json.results;
-    buildLadder();
-  } catch (error) {
-    console.error("Error fetching contracts:", error);
+  console.log("Contracts response:", data);
+
+  if (data.status === "ERROR") {
+    alert("API Error: " + (data.error || "Unknown error"));
+    elements.optionsBody.innerHTML = '<tr><td colspan="7" class="loading">Error loading data</td></tr>';
+    return;
   }
+
+  if (!data.results || data.results.length === 0) {
+    elements.optionsBody.innerHTML = '<tr><td colspan="7" class="loading">No contracts found</td></tr>';
+    return;
+  }
+
+  contracts = data.results;
+  elements.dataStatus.textContent = `${contracts.length} contracts`;
+  buildLadder();
 }
 
-// ---------- BUILD OPTIONS LADDER ----------
 function buildLadder() {
   const byStrike = {};
   
   contracts.forEach(c => {
     const k = c.strike_price;
-    byStrike[k] ??= {};
+    if (!byStrike[k]) byStrike[k] = {};
     byStrike[k][c.contract_type] = c;
   });
+
+  const strikes = Object.keys(byStrike).map(Number).sort((a, b) => a - b);
   
-  Object.keys(byStrike)
-    .sort((a, b) => a - b)
-    .forEach(strike => {
-      const row = document.createElement("tr");
-      const call = byStrike[strike].call;
-      const put = byStrike[strike].put;
-      
-      row.innerHTML = `
-        <td>${strike}</td>
-        <td>${call?.bid ?? "-"}</td>
-        <td>${call?.ask ?? "-"}</td>
-        <td>${put?.bid ?? "-"}</td>
-        <td>${put?.ask ?? "-"}</td>
-      `;
-      
-      ladderBody.appendChild(row);
-    });
-  
-  console.log("Ladder rendered");
+  let atmStrike = null;
+  if (stockPrice) {
+    atmStrike = strikes.reduce((prev, curr) => 
+      Math.abs(curr - stockPrice) < Math.abs(prev - stockPrice) ? curr : prev
+    );
+  }
+
+  elements.optionsBody.innerHTML = "";
+
+  strikes.forEach(strike => {
+    const row = document.createElement("tr");
+    const call = byStrike[strike].call;
+    const put = byStrike[strike].put;
+    
+    if (atmStrike && Math.abs(strike - atmStrike) < 0.01) {
+      row.classList.add("atm-strike");
+    }
+
+    row.innerHTML = `
+      <td>${format(call?.details?.volume, 0)}</td>
+      <td>${format(call?.bid)}</td>
+      <td>${format(call?.ask)}</td>
+      <td class="strike">$${strike.toFixed(2)}</td>
+      <td>${format(put?.bid)}</td>
+      <td>${format(put?.ask)}</td>
+      <td>${format(put?.details?.volume, 0)}</td>
+    `;
+    
+    elements.optionsBody.appendChild(row);
+  });
+
+  console.log(`Ladder built with ${strikes.length} strikes`);
+}
+
+function format(val, decimals = 2) {
+  if (!val) return "-";
+  return decimals === 0 ? val.toLocaleString() : `$${val.toFixed(decimals)}`;
 }
