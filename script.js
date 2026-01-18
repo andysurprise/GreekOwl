@@ -1,136 +1,113 @@
 // ===============================
-// GreekOwl – Safe Terminal Edition
+// GreekOwl — Polygon Per-Expiry Engine
 // ===============================
 
-document.addEventListener("DOMContentLoaded", () => {
+const API_KEY = "Ce7nCyUCeVo3TCmPNmycD99VG6gcMYCJ";
 
-  // ---------- SAFE ELEMENT LOOKUPS ----------
-  const commandInput = document.getElementById("commandInput");
-  const volChartEl   = document.getElementById("volChart");
-  const plChartEl    = document.getElementById("plChart");
+const tickerInput = document.getElementById("tickerInput");
+const loadBtn = document.getElementById("loadBtn");
+const expirySelect = document.getElementById("expirySelect");
+const ladderBody = document.getElementById("optionsBody");
 
-  let volChart = null;
-  let plChart = null;
-  let selectedOption = null;
+let ticker = "";
+let expiries = [];
+let contracts = [];
 
-  // ---------- COMMAND BAR (OPTIONAL) ----------
-  if (commandInput) {
-    commandInput.addEventListener("keydown", e => {
-      if (e.key !== "Enter") return;
+// ---------- HARD BIND LOAD ----------
+loadBtn.addEventListener("click", () => {
+  ticker = tickerInput.value.trim().toUpperCase();
+  if (!ticker) return alert("Enter a ticker");
 
-      const parts = commandInput.value.trim().toUpperCase().split(/\s+/);
-      commandInput.value = "";
-
-      if (parts.length >= 1) {
-        tickerInput.value = parts[0];
-        loadTicker();
-      }
-
-      if (parts.length >= 2) {
-        setTimeout(() => {
-          expirySelect.value = parts[1];
-          currentExpiry = parts[1];
-          buildLadder();
-        }, 600);
-      }
-
-      if (parts.length >= 4) {
-        const type = parts[2] === "C" ? "call" : "put";
-        const strike = Number(parts[3]);
-
-        setTimeout(() => {
-          const row = ladder.find(r => r.strike === strike);
-          if (row && row[type]) {
-            showGreeks(row[type], strike);
-          }
-        }, 1200);
-      }
-    });
-  }
-
-  // ---------- VOLATILITY SMILE ----------
-  function renderVolSmile() {
-    if (!volChartEl || !ladder.length) return;
-    if (volChart) volChart.destroy();
-
-    volChart = new Chart(volChartEl, {
-      type: "line",
-      data: {
-        labels: ladder.map(r => r.strike),
-        datasets: [
-          {
-            label: "Call IV",
-            data: ladder.map(r => r.call?.implied_volatility ?? null),
-            borderWidth: 2
-          },
-          {
-            label: "Put IV",
-            data: ladder.map(r => r.put?.implied_volatility ?? null),
-            borderWidth: 2
-          }
-        ]
-      },
-      options: {
-        plugins: { legend: { labels: { color: "#fff" }}},
-        scales: {
-          x: { ticks: { color: "#aaa" }},
-          y: { ticks: { color: "#aaa" }}
-        }
-      }
-    });
-  }
-
-  // ---------- PAYOFF DIAGRAM ----------
-  function renderPayoff(option, strike) {
-    if (!plChartEl || !option?.last_quote) return;
-    if (plChart) plChart.destroy();
-
-    const premium = option.last_quote.ask ?? option.last_quote.bid ?? 0;
-    const isCall = option.contract_type === "call";
-
-    const prices = [];
-    const pnl = [];
-
-    for (let i = -20; i <= 20; i++) {
-      const px = spot * (1 + i / 20);
-      prices.push(px.toFixed(2));
-
-      const intrinsic = isCall
-        ? Math.max(px - strike, 0)
-        : Math.max(strike - px, 0);
-
-      pnl.push((intrinsic - premium).toFixed(2));
-    }
-
-    plChart = new Chart(plChartEl, {
-      type: "line",
-      data: {
-        labels: prices,
-        datasets: [{ label: "P/L at Expiry", data: pnl, borderWidth: 2 }]
-      },
-      options: {
-        plugins: { legend: { labels: { color: "#fff" }}},
-        scales: {
-          x: { ticks: { color: "#aaa" }},
-          y: { ticks: { color: "#aaa" }}
-        }
-      }
-    });
-  }
-
-  // ---------- EXTEND showGreeks SAFELY ----------
-  const originalShowGreeks = window.showGreeks;
-  window.showGreeks = (opt, strike) => {
-    selectedOption = opt;
-    originalShowGreeks(opt, strike);
-    renderPayoff(opt, strike);
-  };
-
-  // ---------- HOOK AFTER LADDER LOAD ----------
-  const originalBuildLadder = window.buildLadder;
-  window.buildLadder = async () => {
-    await originalBuildLadder();
-    renderVolSmile();
-  };
-
+  console.log("Loading ticker:", ticker);
+  fetchExpirations();
 });
+
+// ---------- FETCH EXPIRATIONS ----------
+async function fetchExpirations() {
+  expirySelect.innerHTML = "";
+  ladderBody.innerHTML = "";
+
+  const url =
+    `https://api.polygon.io/v3/reference/options/contracts?` +
+    `underlying_ticker=${ticker}&limit=20&apiKey=${API_KEY}`;
+
+  console.log("Fetching expiries…");
+
+  const res = await fetch(url);
+  const json = await res.json();
+
+  if (!json.results) {
+    console.error("No expiries returned", json);
+    alert("No options data available");
+    return;
+  }
+
+  expiries = [...new Set(json.results.map(r => r.expiration_date))];
+
+  expiries.forEach(d => {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    expirySelect.appendChild(opt);
+  });
+
+  expirySelect.onchange = fetchContractsForExpiry;
+  fetchContractsForExpiry();
+}
+
+// ---------- FETCH CONTRACTS FOR ONE EXPIRY ----------
+async function fetchContractsForExpiry() {
+  const expiry = expirySelect.value;
+  ladderBody.innerHTML = "";
+
+  const url =
+    `https://api.polygon.io/v3/reference/options/contracts?` +
+    `underlying_ticker=${ticker}` +
+    `&expiration_date=${expiry}` +
+    `&limit=50&apiKey=${API_KEY}`;
+
+  console.log("Fetching contracts for", expiry);
+
+  const res = await fetch(url);
+  const json = await res.json();
+
+  if (!json.results) {
+    console.error("No contracts", json);
+    return;
+  }
+
+  contracts = json.results;
+  buildLadder();
+}
+
+// ---------- BUILD OPTIONS LADDER ----------
+function buildLadder() {
+  const byStrike = {};
+
+  contracts.forEach(c => {
+    const k = c.strike_price;
+    byStrike[k] ??= {};
+    byStrike[k][c.contract_type] = c;
+  });
+
+  Object.keys(byStrike)
+    .sort((a, b) => a - b)
+    .forEach(strike => {
+      const row = document.createElement("tr");
+
+      const call = byStrike[strike].call;
+      const put = byStrike[strike].put;
+
+      row.innerHTML = `
+        <td>${strike}</td>
+        <td>${call?.bid ?? "-"}</td>
+        <td>${call?.ask ?? "-"}</td>
+        <td>${put?.bid ?? "-"}</td>
+        <td>${put?.ask ?? "-"}</td>
+      `;
+
+      ladderBody.appendChild(row);
+    });
+
+  console.log("Ladder rendered");
+}
