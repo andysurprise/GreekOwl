@@ -1,61 +1,77 @@
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 body {
-  background: #0b0b0b;
-  color: #e5e5e5;
-  font-family: Arial, sans-serif;
   margin: 0;
+  background: #000;
+  color: #ddd;
 }
 
-.header {
+.top-bar {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  padding: 10px;
+  background: #111;
+  border-bottom: 1px solid #333;
   align-items: center;
-  padding: 8px;
-  border-bottom: 1px solid #222;
 }
 
-.header input,
-.header select,
-.header button {
-  background: #1a1a1a;
+.top-bar input,
+.top-bar button,
+.top-bar select {
+  background: #000;
   color: #fff;
-  border: 1px solid #333;
-  padding: 4px 6px;
+  border: 1px solid #444;
+  padding: 6px 10px;
 }
 
-.error {
-  color: #ff6b6b;
-}
-
-.container {
+.layout {
   display: grid;
-  grid-template-columns: 1fr 2fr;
-  height: calc(100vh - 48px);
+  grid-template-columns: 45% 55%;
+  height: calc(100vh - 52px);
 }
 
-.options-panel {
+.table-panel {
   overflow-y: auto;
-  border-right: 1px solid #222;
-  padding: 8px;
+  border-right: 1px solid #333;
 }
 
-.options-panel table {
+table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.options-panel th,
-.options-panel td {
-  border: 1px solid #444;
-  padding: 4px;
+thead {
+  background: #111;
+  position: sticky;
+  top: 0;
+}
+
+th, td {
+  padding: 8px;
+  border-bottom: 1px solid #222;
   text-align: center;
 }
 
-.note {
-  font-size: 12px;
-  color: #888;
-  margin-top: 6px;
+tbody tr {
+  cursor: pointer;
+}
+
+tbody tr:hover {
+  background: #1a1a1a;
+}
+
+tbody tr.active {
+  background: #003366;
 }
 
 .chart-panel {
-  padding: 10px;
+  padding: 20px;
+}
+
+.chart-panel h2 {
+  margin-top: 0;
+  color: #9ccfff;
 }
