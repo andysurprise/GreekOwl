@@ -1,31 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>GreekOwl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <header class="top-bar">
-    <input id="tickerInput" placeholder="Ticker (e.g. AAPL)" />
+  <div class="header">
+    <input id="tickerInput" type="text" placeholder="Ticker (e.g., AAPL)">
     <button id="loadBtn">Load</button>
+    <span id="spotDisplay">Spot: —</span>
+  </div>
 
-    <select id="expirySelect">
-      <option value="2026-01-23">2026-01-23</option>
-    </select>
-
-    <div id="spotDisplay">Spot: —</div>
-  </header>
-
-  <main class="layout">
-    <section class="table-panel">
-      <table id="optionsTable">
+  <div class="container">
+    <div class="options-panel">
+      <table>
         <thead>
           <tr>
             <th>Strike</th>
@@ -33,15 +24,15 @@
             <th>Put</th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody id="optionsBody"></tbody>
       </table>
-    </section>
+    </div>
 
-    <section class="chart-panel">
-      <h2>Greeks</h2>
+    <div class="chart-panel">
+      <h3>Greeks (Radial)</h3>
       <canvas id="greeksChart"></canvas>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
