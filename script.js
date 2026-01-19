@@ -1,77 +1,81 @@
-* {
-  box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+// Safari-safe normal CDF approximation
+function normPDF(x) {
+  return Math.exp(-0.5 * x*x) / Math.sqrt(2*Math.PI);
 }
 
-body {
-  margin: 0;
-  background: #000;
-  color: #ddd;
+function normCDF(x) {
+  const k = 1 / (1 + 0.2316419 * Math.abs(x));
+  const a1=0.31938153, a2=-0.356563782, a3=1.781477937, a4=-1.821255978, a5=1.330274429;
+  const poly = a1*k + a2*k*k + a3*k*k*k + a4*k*k*k*k + a5*k*k*k*k*k;
+  const approx = 1 - normPDF(x) * poly;
+  return x >= 0 ? approx : 1 - approx;
 }
 
-.top-bar {
-  display: flex;
-  gap: 10px;
-  padding: 10px;
-  background: #111;
-  border-bottom: 1px solid #333;
-  align-items: center;
+function blackScholesGreeks(S,K,T,r,sigma,isCall) {
+  const d1=(Math.log(S/K)+(r+0.5*sigma*sigma)*T)/(sigma*Math.sqrt(T));
+  const delta = isCall ? normCDF(d1) : normCDF(d1)-1;
+  const gamma = normPDF(d1)/(S*sigma*Math.sqrt(T));
+  const vega = S*normPDF(d1)*Math.sqrt(T);
+  const theta = 0;
+  return {delta,gamma,vega,theta};
 }
 
-.top-bar input,
-.top-bar button,
-.top-bar select {
-  background: #000;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 6px 10px;
-}
+const loadBtn = document.getElementById("loadBtn");
+const optionsBody = document.getElementById("optionsBody");
+const spotDisplay = document.getElementById("spotDisplay");
+let greeksChart;
 
-.layout {
-  display: grid;
-  grid-template-columns: 45% 55%;
-  height: calc(100vh - 52px);
-}
+loadBtn.addEventListener("click", () => {
+  const ticker = document.getElementById("tickerInput").value.trim().toUpperCase();
+  if (!ticker) {
+    alert("Enter a ticker");
+    return;
+  }
 
-.table-panel {
-  overflow-y: auto;
-  border-right: 1px solid #333;
-}
+  const spot = 250;  // demo spot
+  spotDisplay.textContent = `Spot: $${spot}`;
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+  // build ladder
+  optionsBody.innerHTML = "";
+  const strikes = [];
+  for (let s=200; s<=300; s+=5) strikes.push(s);
 
-thead {
-  background: #111;
-  position: sticky;
-  top: 0;
-}
+  strikes.forEach(s => {
+    const row=document.createElement("tr");
+    row.innerHTML = `<td>${s}</td><td>—</td><td>—</td>`;
+    row.onclick = () => showGreeks(s);
+    optionsBody.appendChild(row);
+  });
 
-th, td {
-  padding: 8px;
-  border-bottom: 1px solid #222;
-  text-align: center;
-}
+  const atm = strikes.reduce((a,b) => Math.abs(b-spot) < Math.abs(a-spot)? b:a);
+  showGreeks(atm);
+});
 
-tbody tr {
-  cursor: pointer;
-}
+function showGreeks(strike) {
+  // highlight selected row
+  [...optionsBody.children].forEach(r => {
+    r.classList.toggle("active", Number(r.children[0].textContent)===strike);
+  });
 
-tbody tr:hover {
-  background: #1a1a1a;
-}
+  const S = 250, r=0.01, T=30/365, vol=0.25;
+  const call=blackScholesGreeks(S,strike,T,r,vol,true);
+  const put =blackScholesGreeks(S,strike,T,r,vol,false);
 
-tbody tr.active {
-  background: #003366;
-}
+  const data = {
+    labels: ["Delta","Gamma","Vega","Theta"],
+    datasets: [
+      { label:"Call", data:[call.delta,call.gamma,call.vega,call.theta], borderColor:"#4da6ff" },
+      { label:"Put",  data:[put.delta ,put.gamma ,put.vega ,put.theta ], borderColor:"#ff6666" }
+    ]
+  };
 
-.chart-panel {
-  padding: 20px;
-}
-
-.chart-panel h2 {
-  margin-top: 0;
-  color: #9ccfff;
+  if (greeksChart) greeksChart.destroy();
+  greeksChart = new Chart(document.getElementById("greeksChart"), {
+    type:"radar",
+    data,
+    options:{
+      plugins:{legend:{labels:{color:"#fff"}}},
+      scales:{r:{grid:{color:"#333"},angleLines:{color:"#333"},ticks:{color:"#888"}}}
+    }
+  });
 }
