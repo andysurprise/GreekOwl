@@ -1,38 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>GreekOwl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <title>GreekOwl — Covered Call Validator</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="header">
-    <input id="tickerInput" type="text" placeholder="Ticker (e.g., AAPL)">
-    <button id="loadBtn">Load</button>
-    <span id="spotDisplay">Spot: —</span>
-  </div>
 
-  <div class="container">
-    <div class="options-panel">
-      <table>
-        <thead>
-          <tr>
-            <th>Strike</th>
-            <th>Call</th>
-            <th>Put</th>
-          </tr>
-        </thead>
-        <tbody id="optionsBody"></tbody>
-      </table>
+  <header>
+    <h1>GreekOwl</h1>
+    <p class="subtitle">Covered Call Trade Validator (Model-Based)</p>
+  </header>
+
+  <section class="input-panel">
+    <h2>Proposed Trade</h2>
+
+    <div class="form-row">
+      <label>Ticker</label>
+      <input id="ticker" placeholder="AAPL" />
     </div>
 
-    <div class="chart-panel">
-      <h3>Greeks (Radial)</h3>
-      <canvas id="greeksChart"></canvas>
+    <div class="form-row">
+      <label>Spot Price</label>
+      <input id="spot" type="number" step="0.01" placeholder="195.00" />
     </div>
-  </div>
+
+    <div class="form-row">
+      <label>Strike</label>
+      <input id="strike" type="number" step="0.01" placeholder="200" />
+    </div>
+
+    <div class="form-row">
+      <label>Days to Expiration</label>
+      <input id="dte" type="number" placeholder="35" />
+    </div>
+
+    <div class="form-row">
+      <label>Premium Received (P)</label>
+      <input id="premium" type="number" step="0.01" placeholder="1.85" />
+    </div>
+
+    <div class="form-row">
+      <label>Implied Volatility (decimal)</label>
+      <input id="iv" type="number" step="0.01" placeholder="0.25" />
+    </div>
+
+    <button id="analyzeBtn">Validate Trade</button>
+  </section>
+
+  <section id="analysis" class="hidden">
+
+    <h2>Trade Evaluation</h2>
+    <div id="verdict"></div>
+
+    <div class="metrics">
+      <div><strong>Delta</strong><span id="deltaVal"></span></div>
+      <div><strong>Gamma</strong><span id="gammaVal"></span></div>
+      <div><strong>Theta</strong><span id="thetaVal"></span></div>
+      <div><strong>Assignment Probability</strong><span id="assignProb"></span></div>
+    </div>
+
+    <h3>Profit Automation (Illustrative)</h3>
+    <ul id="automation"></ul>
+
+    <h3>Risk Visualization</h3>
+    <canvas id="greeksChart"></canvas>
+
+    <aside class="explain">
+      <h3>Greek Context</h3>
+      <p><strong>Delta:</strong> Proxy for probability of expiring ITM. For covered calls, 0.30–0.40 balances income and retention.</p>
+      <p><strong>Gamma:</strong> Measures how quickly Delta changes. High Gamma means assignment risk can rise sharply late in the cycle.</p>
+      <p><strong>Theta:</strong> Time decay. This is the income engine of covered calls.</p>
+    </aside>
+
+  </section>
+
+  <footer>
+    <p>Model-based analysis. Not live market data. Educational use only.</p>
+  </footer>
 
   <script src="script.js"></script>
 </body>
