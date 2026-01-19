@@ -1,40 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>GreekOwl</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
-  <div class="header">
-    <input id="tickerInput" type="text" placeholder="Ticker (e.g., AAPL)">
+  <header class="top-bar">
+    <input id="tickerInput" placeholder="Ticker (e.g. AAPL)" />
     <button id="loadBtn">Load</button>
-    <select id="expirySelect"></select>
-    <span id="priceDisplay"></span>
-    <span id="errorMsg"></span>
-  </div>
-  <div class="container">
-    <div class="options-panel">
-      <table>
+
+    <select id="expirySelect">
+      <option value="2026-01-23">2026-01-23</option>
+    </select>
+
+    <div id="spotDisplay">Spot: —</div>
+  </header>
+
+  <main class="layout">
+    <section class="table-panel">
+      <table id="optionsTable">
         <thead>
           <tr>
             <th>Strike</th>
-            <th>Call Bid*</th>
-            <th>Call Ask*</th>
-            <th>Put Bid*</th>
-            <th>Put Ask*</th>
+            <th>Call</th>
+            <th>Put</th>
           </tr>
         </thead>
-        <tbody id="optionsBody"></tbody>
+        <tbody></tbody>
       </table>
-      <div class="note">*Bid/Ask are synthetic since free API lacks pricing</div>
-    </div>
-    <div class="chart-panel">
-      <h3>Greeks</h3>
+    </section>
+
+    <section class="chart-panel">
+      <h2>Greeks</h2>
       <canvas id="greeksChart"></canvas>
-    </div>
-  </div>
+    </section>
+  </main>
+
   <script src="script.js"></script>
 </body>
 </html>
