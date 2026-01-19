@@ -1,138 +1,117 @@
-// script.js
+// ---------- Utilities ----------
+function normCDF(x) {
+  return (1 + Math.erf(x / Math.sqrt(2))) / 2;
+}
 
-const API_KEY = "Ce7nCyUCeVo3TCmPNmycD99VG6gcMYCJ";
+function blackScholesGreeks(S, K, T, r, sigma, isCall) {
+  const d1 = (Math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * Math.sqrt(T));
+  const d2 = d1 - sigma * Math.sqrt(T);
 
+  const delta = isCall ? normCDF(d1) : normCDF(d1) - 1;
+  const gamma = Math.exp(-0.5 * d1 ** 2) / (S * sigma * Math.sqrt(2 * Math.PI * T));
+  const vega = (S * Math.exp(-0.5 * d1 ** 2) * Math.sqrt(T)) / Math.sqrt(2 * Math.PI);
+  const theta = -(
+    (S * sigma * Math.exp(-0.5 * d1 ** 2)) /
+    (2 * Math.sqrt(2 * Math.PI * T))
+  );
+
+  return { delta, gamma, vega, theta };
+}
+
+// ---------- DOM ----------
 const tickerInput = document.getElementById("tickerInput");
-const loadBtn     = document.getElementById("loadBtn");
-const expirySelect= document.getElementById("expirySelect");
-const optionsBody = document.getElementById("optionsBody");
-const priceDisplay= document.getElementById("priceDisplay");
-const errorMsg    = document.getElementById("errorMsg");
-let greeksChart;
+const loadBtn = document.getElementById("loadBtn");
+const tableBody = document.querySelector("#optionsTable tbody");
+const spotDisplay = document.getElementById("spotDisplay");
 
-loadBtn.addEventListener("click", loadTicker);
+let chart;
+let spot = 255.53;
 
-// --- Fetch and populate expiries ---
-async function loadTicker() {
-  const ticker = tickerInput.value.trim().toUpperCase();
-  if (!ticker) return;
+// ---------- Build Strike Ladder ----------
+function buildTable() {
+  tableBody.innerHTML = "";
+  const strikes = [];
+  for (let k = 200; k <= 310; k += 5) strikes.push(k);
 
-  errorMsg.textContent = "";
-  priceDisplay.textContent = "";
+  strikes.forEach(strike => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${strike}</td>
+      <td>—</td>
+      <td>—</td>
+    `;
+    row.addEventListener("click", () => selectStrike(row, strike));
+    tableBody.appendChild(row);
+  });
 
-  try {
-    const quoteRes = await fetch(
-      `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?apiKey=${API_KEY}`
-    );
-    const quoteJson = await quoteRes.json();
-    if (quoteJson.results && quoteJson.results.length) {
-      priceDisplay.textContent = `Spot: $${quoteJson.results[0].c.toFixed(2)}`;
-    }
-
-    const expRes = await fetch(
-      `https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=${ticker}&limit=500&apiKey=${API_KEY}`
-    );
-    const expJson = await expRes.json();
-    if (!expJson.results) {
-      errorMsg.textContent = "No option contracts found";
-      return;
-    }
-
-    const expiries = [...new Set(expJson.results.map(o => o.expiration_date))].sort();
-    expirySelect.innerHTML = "";
-    expiries.forEach(d => {
-      const o = document.createElement("option");
-      o.value = d;
-      o.textContent = d;
-      expirySelect.appendChild(o);
-    });
-
-    expirySelect.onchange = () => buildLadder(ticker, expirySelect.value);
-    if (expiries.length) buildLadder(ticker, expiries[0]);
-  } catch (err) {
-    console.error(err);
-    errorMsg.textContent = "Failed to load data";
-  }
+  // auto-select ATM
+  const atmStrike = strikes.reduce((a, b) =>
+    Math.abs(b - spot) < Math.abs(a - spot) ? b : a
+  );
+  const atmRow = [...tableBody.children].find(
+    r => Number(r.children[0].textContent) === atmStrike
+  );
+  selectStrike(atmRow, atmStrike);
 }
 
-// --- Build ladder ---
-async function buildLadder(ticker, expiry) {
-  optionsBody.innerHTML = "";
-
-  try {
-    const res = await fetch(
-      `https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=${ticker}` +
-      `&expiration_date=${expiry}&limit=500&apiKey=${API_KEY}`
-    );
-    const json = await res.json();
-    const data = json.results || [];
-
-    const byStrike = {};
-    data.forEach(c => {
-      const k = c.strike_price;
-      byStrike[k] ??= { strike: k };
-      byStrike[k][c.contract_type] = c;
-    });
-
-    const strikes = Object.keys(byStrike).sort((a,b) => a - b);
-    strikes.forEach(k => {
-      const { call, put } = byStrike[k];
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${k}</td>
-        <td>-</td><td>-</td>
-        <td>-</td><td>-</td>
-      `;
-      row.onclick = () => showGreeks(call, put, Number(k));
-      optionsBody.appendChild(row);
-    });
-
-  } catch (err) {
-    console.error(err);
-  }
+// ---------- Strike Selection ----------
+function selectStrike(row, strike) {
+  [...tableBody.children].forEach(r => r.classList.remove("active"));
+  row.classList.add("active");
+  renderGreeks(strike);
 }
 
-// --- Compute and show Greeks locally ---
-function showGreeks(call, put, strike) {
-  const S = parseFloat(priceDisplay.textContent.replace("Spot: $","")) || 0;
-  const vol = 0.25; // synthetic
-  const r = 0.01;
-  const T = 30/365;
+// ---------- Chart ----------
+function renderGreeks(strike) {
+  const T = 30 / 365;
+  const r = 0.05;
+  const sigma = 0.25;
 
-  function normalPDF(x) {
-    return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI);
-  }
-  function normalCDF(x) {
-    return (1 + Math.erf(x/Math.sqrt(2))) / 2;
-  }
-  function bsGreeks(S,K,T,r,v,isCall) {
-    const d1 = (Math.log(S/K)+(r+0.5*v*v)*T)/(v*Math.sqrt(T));
-    const d2 = d1 - v*Math.sqrt(T);
-    const delta = isCall ? normalCDF(d1) : normalCDF(d1)-1;
-    const gamma = normalPDF(d1)/(S*v*Math.sqrt(T));
-    const theta = 0;
-    const vega  = S * normalPDF(d1) * Math.sqrt(T);
-    return {delta,gamma,theta,vega};
-  }
+  const call = blackScholesGreeks(spot, strike, T, r, sigma, true);
+  const put = blackScholesGreeks(spot, strike, T, r, sigma, false);
 
-  const data = [
-    bsGreeks(S,strike,T,r,vol,true),
-    bsGreeks(S,strike,T,r,vol,false)
-  ];
+  const data = {
+    labels: ["Delta", "Gamma", "Vega", "Theta"],
+    datasets: [
+      {
+        label: "Call",
+        data: [call.delta, call.gamma, call.vega, call.theta],
+        borderColor: "#4da6ff",
+        fill: false
+      },
+      {
+        label: "Put",
+        data: [put.delta, put.gamma, put.vega, put.theta],
+        borderColor: "#ff6666",
+        fill: false
+      }
+    ]
+  };
 
-  if (greeksChart) greeksChart.destroy();
-  greeksChart = new Chart(document.getElementById("greeksChart"), {
-    type: "bar",
-    data: {
-      labels: ["Call Δ","Call Γ","Put Δ","Put Γ"],
-      datasets: [{
-        label: `${strike}`,
-        data: [
-          data[0].delta, data[0].gamma,
-          data[1].delta, data[1].gamma
-        ],
-        backgroundColor: ["#4CAF50","#2196F3","#FF5722","#9C27B0"]
-      }]
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("greeksChart"), {
+    type: "radar",
+    data,
+    options: {
+      scales: {
+        r: {
+          grid: { color: "#333" },
+          angleLines: { color: "#333" },
+          ticks: { color: "#888" }
+        }
+      },
+      plugins: {
+        legend: { labels: { color: "#ccc" } }
+      }
     }
   });
 }
+
+// ---------- Load ----------
+loadBtn.addEventListener("click", () => {
+  const ticker = tickerInput.value.trim().toUpperCase();
+  if (!ticker) return alert("Enter a ticker");
+  spotDisplay.textContent = `Spot: $${spot.toFixed(2)}`;
+  buildTable();
+});
