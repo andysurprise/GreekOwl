@@ -1,98 +1,90 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0e1116;
+  background: #0b0e11;
   color: #e5e7eb;
 }
 
 header {
   padding: 16px 24px;
-  border-bottom: 1px solid #1f2937;
+  border-bottom: 1px solid #1f2933;
 }
 
 h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 22px;
 }
 
 .subtitle {
+  font-size: 13px;
   color: #9ca3af;
-  font-size: 0.85rem;
 }
 
-.input-panel {
-  padding: 20px 24px;
-  max-width: 520px;
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
 }
 
-.form-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
+.panel {
+  background: #111827;
+  border: 1px solid #1f2933;
+  padding: 16px;
+  border-radius: 6px;
+}
+
+h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
 }
 
 label {
-  color: #9ca3af;
+  display: block;
+  font-size: 13px;
+  margin-bottom: 10px;
 }
 
 input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px;
   background: #020617;
   color: #e5e7eb;
-  border: 1px solid #1f2937;
-  padding: 6px;
-  width: 180px;
+  border: 1px solid #374151;
+  border-radius: 4px;
 }
 
 button {
   margin-top: 12px;
-  padding: 10px;
-  background: #111827;
-  border: 1px solid #374151;
-  color: #e5e7eb;
+  width: 100%;
+  padding: 8px;
+  background: #2563eb;
+  border: none;
+  color: white;
+  font-weight: 600;
   cursor: pointer;
 }
 
-button:hover {
-  background: #1f2937;
+ul {
+  list-style: none;
+  padding: 0;
 }
 
-#analysis {
-  padding: 24px;
+li {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
 }
 
-.hidden {
-  display: none;
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin: 12px 0;
-}
-
-.metrics div {
-  background: #020617;
-  padding: 10px;
-  border: 1px solid #1f2937;
-}
-
-#verdict {
-  margin-bottom: 12px;
-  padding: 12px;
-  background: #020617;
-  border-left: 4px solid #2563eb;
-}
-
-.explain {
-  margin-top: 20px;
-  padding: 12px;
-  background: #020617;
-  border: 1px solid #1f2937;
-}
+.pass { background: #064e3b; }
+.warn { background: #78350f; }
+.fail { background: #7f1d1d; }
 
 footer {
-  padding: 12px 24px;
-  font-size: 0.75rem;
-  color: #6b7280;
+  padding: 10px 16px;
+  font-size: 11px;
+  color: #9ca3af;
+  border-top: 1px solid #1f2933;
 }
