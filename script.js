@@ -1,106 +1,78 @@
-const PROXY_URL = "https://greekowl-proxy.glance-muckier-7k.workers.dev";
+const proxy = "https://greekowl-proxy.glance-muckier-7k.workers.dev";
 
-const checklistEl = document.getElementById("checklist");
-const greekInfoEl = document.getElementById("greekInfo");
+const checklist = document.getElementById("checklist");
+const context = document.getElementById("context");
+const tickerContext = document.getElementById("tickerContext");
 
-document.getElementById("validateBtn").addEventListener("click", validateTrade);
+document.getElementById("validate").onclick = async () => {
+  checklist.innerHTML = "";
+  context.textContent = "";
 
-async function validateTrade() {
-  checklistEl.innerHTML = "";
-  greekInfoEl.innerHTML = "<p>Select a checklist item to see context.</p>";
-
-  const tickerRaw = document.getElementById("ticker").value.trim();
-  const ticker = tickerRaw.toUpperCase();
-
-  const expirationValue = document.getElementById("expiration").value;
-  const strike = parseFloat(document.getElementById("strike").value);
-  const premium = parseFloat(document.getElementById("premium").value);
+  const ticker = document.getElementById("ticker").value.toUpperCase();
+  const expiry = new Date(document.getElementById("expiry").value);
   const delta = parseFloat(document.getElementById("delta").value);
+  const premium = parseFloat(document.getElementById("premium").value);
 
-  if (!ticker || !expirationValue || !strike || !premium || !delta) {
-    alert("All fields are required.");
-    return;
-  }
+  const dte = Math.round((expiry - new Date()) / 86400000);
 
-  const expiration = new Date(expirationValue + "T00:00:00");
-  const today = new Date();
-  const dte = Math.ceil((expiration - today) / (1000 * 60 * 60 * 24));
-
-  if (isNaN(dte)) {
-    alert("Expiration date is invalid. Use the date picker.");
-    return;
-  }
-
-  let data = {};
-  try {
-    const res = await fetch(`${PROXY_URL}/?symbol=${ticker}`);
-    data = await res.json();
-  } catch {
-    data = {};
-  }
-
-  // --- DTE check ---
-  addChecklistItem(
-    dte >= 20 && dte <= 50 ? "pass" : "warn",
-    `Time to expiration: ${dte} days`,
-    "Time to Expiration",
-    "Covered calls between 20–50 DTE balance time decay and assignment risk."
+  addCheck(
+    dte >= 20 && dte <= 50,
+    `Days to expiration: ${dte}`,
+    "Covered calls target 20–50 DTE to balance decay vs assignment risk."
   );
 
-  // --- Delta check ---
-  addChecklistItem(
-    delta >= 0.3 && delta <= 0.4 ? "pass" : "warn",
-    `Delta: ${delta.toFixed(2)}`,
-    "Delta",
-    "Delta approximates the probability of finishing in-the-money. Higher delta increases assignment risk."
+  addCheck(
+    delta >= 0.3 && delta <= 0.4,
+    `Delta: ${delta}`,
+    "Delta approximates assignment probability. .30–.40 balances yield and safety."
   );
 
-  // --- Dividend risk ---
-  if (data.dividend?.ex_dividend_date) {
-    const exDiv = new Date(data.dividend.ex_dividend_date + "T00:00:00");
-    if (exDiv < expiration) {
-      addChecklistItem(
-        "fail",
-        `Dividend before expiration (${data.dividend.ex_dividend_date})`,
-        "Dividend Risk",
-        "Early assignment risk increases when remaining extrinsic value is less than the dividend."
-      );
-    } else {
-      addChecklistItem(
-        "pass",
-        "No dividend before expiration",
-        "Dividend Risk",
-        "Dividend does not intersect this trade window."
-      );
-    }
-  } else {
-    addChecklistItem(
-      "warn",
-      "Dividend data unavailable",
-      "Dividend Risk",
-      "Dividend information may be missing. Verify manually if assignment risk is material."
-    );
-  }
-
-  // --- Profit automation ---
-  const targetBuyback = (premium * 0.3).toFixed(2);
-  addChecklistItem(
-    "pass",
-    `70% profit target: Buy-to-close @ ${targetBuyback}`,
-    "Profit Automation",
-    "Buying back at ~30% of premium captures most theta decay and avoids late-stage gamma risk."
+  addCheck(
+    premium > 0,
+    `Premium entered: ${premium}`,
+    "Premium is required to define profit targets and risk controls."
   );
+
+  loadTickerContext(ticker);
+};
+
+function addCheck(pass, text, explanation) {
+  const li = document.createElement("li");
+  li.className = pass ? "pass" : "fail";
+  li.textContent = text;
+  li.onclick = () => (context.textContent = explanation);
+  checklist.appendChild(li);
 }
 
-function addChecklistItem(status, text, title, explanation) {
-  const li = document.createElement("li");
-  li.className = status;
-  li.textContent = text;
-  li.onclick = () => {
-    greekInfoEl.innerHTML = `
-      <h3>${title}</h3>
-      <p>${explanation}</p>
-    `;
-  };
-  checklistEl.appendChild(li);
+async function loadTickerContext(ticker) {
+  tickerContext.textContent = "Loading market data…";
+
+  const res = await fetch(`${proxy}?symbol=${ticker}`);
+  const data = await res.json();
+
+  if (data.error) {
+    tickerContext.textContent = data.error;
+    return;
+  }
+
+  const price = data.price ?? "Unavailable";
+  const hi = data.high30 ?? "—";
+  const lo = data.low30 ?? "—";
+
+  let range = "—";
+  if (data.high30 && data.low30 && data.price) {
+    range = (((hi - lo) / data.price) * 100).toFixed(1) + "%";
+  }
+
+  const div = data.dividend
+    ? `$${data.dividend.cash_amount} ex-div ${data.dividend.ex_dividend_date}`
+    : "No recent dividend";
+
+  tickerContext.innerHTML = `
+    <strong>${ticker}</strong><br><br>
+    Last close: ${price}<br>
+    30-day high / low: ${hi} / ${lo}<br>
+    30-day range: ${range}<br>
+    Dividend: ${div}
+  `;
 }
