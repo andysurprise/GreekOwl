@@ -37,16 +37,56 @@ header p {
 .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: auto auto auto;
   gap: 20px;
   padding: 20px;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
+}
+
+/* Make inputs panel taller to match checklist */
+.grid > .panel:nth-child(1) {
+  grid-row: 1 / 3;
+}
+
+/* Checklist spans 1 row */
+.grid > .panel:nth-child(2) {
+  grid-row: 1;
+}
+
+/* Greek Context */
+.grid > .panel:nth-child(3) {
+  grid-row: 2;
+}
+
+/* Ticker Context */
+.grid > .panel:nth-child(4) {
+  grid-row: 2;
+}
+
+/* Chart spans full width at bottom */
+.chart-panel {
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 /* Responsive grid */
 @media (max-width: 1024px) {
   .grid {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  
+  .grid > .panel:nth-child(1),
+  .grid > .panel:nth-child(2),
+  .grid > .panel:nth-child(3),
+  .grid > .panel:nth-child(4) {
+    grid-row: auto;
+  }
+  
+  .chart-panel {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 
@@ -335,6 +375,89 @@ li.fail::before {
 .context-display .error {
   color: #f87171;
   font-weight: 500;
+}
+
+/* ===== TICKER INFO ===== */
+.ticker-info h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ticker-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #1e293b;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row .label {
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.detail-row .value {
+  color: #f3f4f6;
+  font-weight: 600;
+  text-align: right;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #9ca3af;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===== CHART ===== */
+.chart-container {
+  width: 100%;
+  min-height: 450px;
+  height: 450px;
+  position: relative;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+}
+
+#payoffChart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (max-width: 1024px) {
+  .chart-container {
+    min-height: 350px;
+    height: 350px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    min-height: 300px;
+    height: 300px;
+  }
 }
 
 /* ===== FOOTER ===== */
