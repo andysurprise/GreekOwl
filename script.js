@@ -255,15 +255,31 @@ document.getElementById('reset')?.addEventListener('click', () => {
 // Payoff Diagram Function
 function createPayoffDiagram(stockPrice, strike, premium, shares = 100) {
   const canvas = document.getElementById('payoffChart');
-  if (!canvas) return;
+  if (!canvas) {
+    console.error('Canvas element not found');
+    return;
+  }
+  
+  // Wait for container to have dimensions
+  const container = canvas.parentElement;
+  if (!container.offsetWidth || !container.offsetHeight) {
+    console.warn('Container has no dimensions, retrying...');
+    setTimeout(() => createPayoffDiagram(stockPrice, strike, premium, shares), 100);
+    return;
+  }
   
   const ctx = canvas.getContext('2d');
-  const width = canvas.width = canvas.offsetWidth * 2;
-  const height = canvas.height = canvas.offsetHeight * 2;
+  
+  // Use container dimensions
+  const containerWidth = container.offsetWidth;
+  const containerHeight = container.offsetHeight;
+  
+  const width = canvas.width = containerWidth * 2; // High DPI
+  const height = canvas.height = containerHeight * 2;
   ctx.scale(2, 2);
   
-  const w = width / 2;
-  const h = height / 2;
+  const w = containerWidth;
+  const h = containerHeight;
   
   const breakeven = stockPrice - premium;
   const maxProfit = (strike - stockPrice + premium) * shares;
