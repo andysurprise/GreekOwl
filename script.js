@@ -154,21 +154,26 @@ async function loadTickerContext(ticker) {
     console.log("Fetching:", url);
     
     const res = await fetch(url);
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    
     const data = await res.json();
     
     console.log("Response:", data);
     
-    if (data.error || !res.ok) {
+    if (data.error) {
       tickerContext.innerHTML = `
         <span class="error">
-          ⚠️ ${data.error || 'Failed to load data'}<br>
+          ⚠️ ${data.error}<br>
           <small>Check console for details</small>
         </span>
       `;
       return;
     }
     
-    const price = data.price?.toFixed(2) ?? "Unavailable";
+    const price = data.price != null ? data.price.toFixed(2) : "Unavailable";
     
     tickerContext.innerHTML = `
       <div class="ticker-info">
