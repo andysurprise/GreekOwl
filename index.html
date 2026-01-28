@@ -6,7 +6,6 @@
   <meta name="description" content="GreekOwl - A covered call trade validator for options traders. Analyze risk, validate trades, and make informed decisions." />
   <title>GreekOwl | Covered Call Trade Validator</title>
   <link rel="stylesheet" href="styles.css" />
-  <!-- Optional: Add favicon -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦉</text></svg>" />
 </head>
 <body>
@@ -27,13 +26,11 @@
           name="ticker"
           type="text"
           placeholder="AAPL" 
-          pattern="[A-Z]{1,5}"
           maxlength="5"
           required
-          aria-describedby="ticker-help"
           autocomplete="off"
         />
-        <small id="ticker-help" class="help-text">Enter stock symbol (e.g., AAPL, MSFT)</small>
+        <small class="help-text">Enter stock symbol (e.g., AAPL, MSFT)</small>
       </div>
 
       <div class="input-group">
@@ -43,9 +40,8 @@
           name="expiry"
           type="date" 
           required
-          aria-describedby="expiry-help"
         />
-        <small id="expiry-help" class="help-text">Option expiration date</small>
+        <small class="help-text">Option expiration date</small>
       </div>
 
       <div class="input-group">
@@ -58,9 +54,8 @@
           min="0.01"
           placeholder="150.00"
           required
-          aria-describedby="strike-help"
         />
-        <small id="strike-help" class="help-text">Price at which option can be exercised</small>
+        <small class="help-text">Price at which option can be exercised</small>
       </div>
 
       <div class="input-group">
@@ -73,9 +68,8 @@
           min="0.01"
           placeholder="2.50"
           required
-          aria-describedby="premium-help"
         />
-        <small id="premium-help" class="help-text">Price received for selling the call</small>
+        <small class="help-text">Price received for selling the call</small>
       </div>
 
       <div class="input-group">
@@ -89,9 +83,8 @@
           max="1"
           placeholder="0.35"
           required
-          aria-describedby="delta-help"
         />
-        <small id="delta-help" class="help-text">Assignment probability (0.00 - 1.00)</small>
+        <small class="help-text">Assignment probability (0.00 - 1.00)</small>
       </div>
 
       <button id="validate" type="button" class="btn-primary">
@@ -131,6 +124,14 @@
       Enter a ticker to load market context.
     </div>
   </section>
+
+  <!-- NEW: Payoff Diagram Section -->
+  <section class="panel chart-panel">
+    <h2>Profit/Loss Diagram</h2>
+    <div class="chart-container">
+      <canvas id="payoffChart"></canvas>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -142,7 +143,7 @@
   </p>
   <p>
     <small>
-      Made with 🦉 | 
+      Made by Andy with AI | 
       <a href="https://github.com/andysurprise/GreekOwl" target="_blank" rel="noopener">
         View on GitHub
       </a>
