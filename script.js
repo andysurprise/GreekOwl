@@ -11,6 +11,27 @@ const VALIDATION_RULES = {
   DELTA_MAX: 0.4
 };
 
+// Auto-load ticker context when ticker field changes
+let tickerLoadTimeout;
+document.getElementById("ticker").addEventListener("input", (e) => {
+  const ticker = e.target.value.trim().toUpperCase();
+  
+  // Clear any pending timeout
+  clearTimeout(tickerLoadTimeout);
+  
+  if (ticker.length === 0) {
+    tickerContext.textContent = "Enter a ticker to load market context.";
+    return;
+  }
+  
+  // Debounce: wait 500ms after user stops typing
+  tickerLoadTimeout = setTimeout(() => {
+    if (ticker.length > 0) {
+      loadTickerContext(ticker);
+    }
+  }, 500);
+});
+
 document.getElementById("validate").onclick = async () => {
   checklist.innerHTML = "";
   context.textContent = "";
@@ -93,9 +114,6 @@ document.getElementById("validate").onclick = async () => {
       );
     }
     
-    // Load market data
-    await loadTickerContext(ticker);
-    
     // Get the actual stock price from the loaded data
     const stockPriceMatch = tickerContext.textContent.match(/Last close: \$([0-9.]+)/);
     const stockPrice = stockPriceMatch ? parseFloat(stockPriceMatch[1]) : strike;
@@ -151,27 +169,6 @@ async function loadTickerContext(ticker) {
     }
     
     const price = data.price?.toFixed(2) ?? "Unavailable";
-    const hi = data.high30?.toFixed(2) ?? "—";
-    const lo = data.low30?.toFixed(2) ?? "—";
-    
-    let range = "—";
-    let volatilityNote = "";
-    if (data.high30 && data.low30 && data.price) {
-      const rangePercent = ((data.high30 - data.low30) / data.price) * 100;
-      range = rangePercent.toFixed(1) + "%";
-      
-      if (rangePercent > 20) {
-        volatilityNote = " <span class='warn'>(High volatility - higher premiums but more risk)</span>";
-      } else if (rangePercent < 5) {
-        volatilityNote = " <span class='pass'>(Low volatility - lower premiums but more stable)</span>";
-      } else {
-        volatilityNote = " <span class='pass'>(Moderate volatility)</span>";
-      }
-    }
-    
-    const div = data.dividend
-      ? `$${data.dividend.cash_amount} (ex-div: ${data.dividend.ex_dividend_date})`
-      : "No recent dividend";
     
     tickerContext.innerHTML = `
       <div class="ticker-info">
@@ -180,18 +177,6 @@ async function loadTickerContext(ticker) {
           <div class="detail-row">
             <span class="label">Last close:</span>
             <span class="value">$${price}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">30-day high / low:</span>
-            <span class="value">$${hi} / $${lo}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">30-day range:</span>
-            <span class="value">${range}${volatilityNote}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Dividend:</span>
-            <span class="value">${div}</span>
           </div>
         </div>
       </div>
@@ -223,34 +208,6 @@ document.getElementById('reset')?.addEventListener('click', () => {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 });
-
-/* Add these styles to your styles.css:
-
-.chart-panel {
-  grid-column: 1 / -1;
-}
-
-.chart-container {
-  width: 100%;
-  height: 400px;
-  position: relative;
-  background: rgba(15, 23, 42, 0.5);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-#payoffChart {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-@media (max-width: 1024px) {
-  .chart-container {
-    height: 300px;
-  }
-}
-*/
 
 // Payoff Diagram Function
 function createPayoffDiagram(stockPrice, strike, premium, shares = 100) {
